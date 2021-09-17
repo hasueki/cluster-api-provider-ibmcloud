@@ -8,6 +8,7 @@ require (
 	github.com/IBM/vpc-go-sdk v0.6.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-logr/logr v0.4.0
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang/mock v1.4.4
 	github.com/onsi/ginkgo v1.15.0
 	github.com/onsi/gomega v1.10.5

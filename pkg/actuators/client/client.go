@@ -22,6 +22,7 @@ import (
 	"github.com/IBM/go-sdk-core/v5/core"
 	"github.com/IBM/platform-services-go-sdk/resourcemanagerv2"
 	"github.com/IBM/vpc-go-sdk/vpcv1"
+	"github.com/golang-jwt/jwt"
 	ibmcloudproviderv1 "github.com/openshift/cluster-api-provider-ibmcloud/pkg/apis/ibmcloudprovider/v1beta1"
 	"github.com/pkg/errors"
 )
@@ -50,6 +51,7 @@ type Client interface {
 
 // ibmCloudClient makes call to IBM Cloud APIs
 type ibmCloudClient struct {
+	accountID              string
 	vpcService             *vpcv1.VpcV1
 	resourceManagerService *resourcemanagerv2.ResourceManagerV2
 }
@@ -63,6 +65,24 @@ func NewClient(credentialVal string, providerSpec ibmcloudproviderv1.IBMCloudMac
 	// authenticator
 	authenticator := &core.IamAuthenticator{
 		ApiKey: credentialVal,
+	}
+
+	// Get IAM token
+	iamToken, err := authenticator.RequestToken()
+	if err != nil {
+		return nil, err
+	}
+	parsedToken, _ := jwt.Parse(iamToken.AccessToken, nil)
+
+	// Get account ID
+	var accountID string
+	if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
+		accountInfo := claims["account"].(map[string]interface{})
+		accountID = accountInfo["bss"].(string)
+	}
+
+	if accountID == "" {
+		return nil, fmt.Errorf("could not determine account id")
 	}
 
 	// IC Virtual Private Cloud (VPC) API
@@ -95,6 +115,7 @@ func NewClient(credentialVal string, providerSpec ibmcloudproviderv1.IBMCloudMac
 	}
 
 	return &ibmCloudClient{
+		accountID:              accountID,
 		vpcService:             vpcService,
 		resourceManagerService: resourceManagerService,
 	}, nil
@@ -363,6 +384,8 @@ func (c *ibmCloudClient) GetCustomImageByName(imageName string, resourceGroupID 
 func (c *ibmCloudClient) GetResourceGroupIDByName(resourceGroupName string) (string, error) {
 	// Initialize New List Resource Group Options
 	resourceGroupOptions := c.resourceManagerService.NewListResourceGroupsOptions()
+	// Set Account ID
+	resourceGroupOptions.SetAccountID(c.accountID)
 	// Set Resource Group Name
 	resourceGroupOptions.SetName(resourceGroupName)
 	// Get Resource Group
